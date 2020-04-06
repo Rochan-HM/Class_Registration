@@ -9,6 +9,8 @@ import pyautogui
 from datetime import datetime, timedelta
 import sched
 import atexit
+from win32com.client import Dispatch
+from getpass import getpass
 
 print("Welcome to Class Registration")
 print("Run this program 5 minutes before your registration time")
@@ -105,7 +107,7 @@ def getAccountDetails():
 
     elif inp.__contains__("2"):
         username = input("Enter your GT User ID (Eg:gburdell3): ")
-        password = input("Enter your password: ")
+        password = getpass("Enter your password: ")
         passcode = input("Enter your Duo One Time Passcode (Go to Duo App, Click on Georgia Institute of Technology, "
                          "and enter the 6 digit code with no spaces) Eg: 123456: ")
         n = int(input("Enter the number of classes you wish to register for: "))
@@ -114,18 +116,43 @@ def getAccountDetails():
             crns.append(input("Enter the CRN of Class " + str(i + 1) + ": "))
 
 
-def getDriver():
-    print(
-        "This only works with Google Chrome right now. What version are you using? (Go to Menu -> Help -> "
-        "About Google Chrome)")
+def getChromeVersion(filename):
+    parser = Dispatch("Scripting.FileSystemObject")
+    try:
+        version = parser.GetFileVersion(filename)
+    except Exception:
+        return None
+    return version
 
+
+def getDriver():
     if os.path.exists(directory + "chromedriver.exe"):
         os.remove(directory + "chromedriver.exe")
+    try:
+        print("This only works with Google Chrome right now.")
+        print("Trying to determine your Chrome Version...")
+        paths = [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                 r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"]
+        version = list(filter(None, [getChromeVersion(p) for p in paths]))[0]
+        print("Your Chrome Version is: " + version)
+        v_no = version.split(".")[0]
 
-    print("Enter '1' for Chrome v79.x")
-    print("Enter '2' for Chrome v80.x")
-    print("Enter '3' for Chrome v81.x")
-    inp = input("Selection: ")
+        if v_no == "79":
+            inp = "1"
+        elif v_no == "81":
+            inp = "3"
+        else:
+            inp = "2"
+    except Exception:
+        print(
+            "Unable to automatically get your Chrome version. Which version are you using? (Go to Menu -> Help -> "
+            "About Google Chrome)")
+
+        print("Enter '1' for Chrome v79.x")
+        print("Enter '2' for Chrome v80.x")
+        print("Enter '3' for Chrome v81.x")
+        inp = input("Selection: ")
+
     print("Please wait... Downloading selenium driver.")
     if inp.__contains__("1"):
         url = "https://chromedriver.storage.googleapis.com/79.0.3945.36/chromedriver_win32.zip"
@@ -166,8 +193,6 @@ def getRegistrationDetails():
 def getReady():
     global chrome
 
-    print("Getting ready to register.")
-
     chrome = webdriver.Chrome(directory + "chromedriver.exe")
     chrome.maximize_window()
 
@@ -197,8 +222,7 @@ def getReady():
     chrome.get("https://oscar.gatech.edu/pls/bprod/bwskfreg.P_AltPin")
 
     print()
-    print()
-    print("Waiting to register...")
+    print("Done loading.")
     print("You may change the term if you wish to now.")
 
 
@@ -206,7 +230,7 @@ def register():
     global chrome, crns
     chrome.find_element_by_xpath('/html/body/div[3]/form/input').click()
 
-    for i in range(crns):
+    for i in range(len(crns)):
         crnid = 'crn_id' + str(i + 1)
         chrome.find_element_by_id(crnid).send_keys(crns[i])
 
@@ -224,8 +248,13 @@ def main():
     todo_time = (datetime(time.localtime().tm_year, time.localtime().tm_mon, time.localtime().tm_mday,
                           hour, minute, 0) - timedelta(hours=0, minutes=3)).time()
 
+    print()
+    print("Waiting until {} to start loading...".format(todo_time))
     s.enterabs(datetime(time.localtime().tm_year, time.localtime().tm_mon, time.localtime().tm_mday, todo_time.hour,
                         todo_time.minute, 0, 0).timestamp(), 1, getReady)
+
+    print("Waiting until {} to register...".format(
+        datetime(time.localtime().tm_year, time.localtime().tm_mon, time.localtime().tm_mday, hour, minute, 0).time()))
     s.enterabs(datetime(time.localtime().tm_year, time.localtime().tm_mon, time.localtime().tm_mday, hour,
                         minute, 0, 0).timestamp(), 1, register)
 
